@@ -34,8 +34,6 @@
 
 ---
 
----
-
 ## Why OpenSRE?
 
 When something breaks in production, the evidence is scattered across logs, metrics, traces, runbooks, and Slack threads. OpenSRE is an open-source framework for AI SRE agents that resolve production incidents, built to run on your own infrastructure.
