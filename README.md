@@ -641,6 +641,15 @@ Thanks goes to these amazing people:
         </a>
     </td>
 		</tr>
+		<tr>
+            <td align="center">
+        <a href="https://github.com/divijgera">
+            <img src="https://avatars.githubusercontent.com/u/46404484?v=4" width="100" alt="divijgera"/>
+            <br />
+            <sub><b>divijgera</b></sub>
+        </a>
+    </td>
+		</tr>
 	</tbody>
 </table>
 <!-- readme: contributors -end -->
