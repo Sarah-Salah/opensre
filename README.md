@@ -693,6 +693,13 @@ Thanks goes to these amazing people:
             <sub><b>F4tal1t</b></sub>
         </a>
     </td>
+            <td align="center">
+        <a href="https://github.com/MestreY0d4-Uninter">
+            <img src="https://avatars.githubusercontent.com/u/241404605?v=4" width="100" alt="MestreY0d4-Uninter"/>
+            <br />
+            <sub><b>MestreY0d4-Uninter</b></sub>
+        </a>
+    </td>
 		</tr>
 	</tbody>
 </table>
