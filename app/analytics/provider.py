@@ -192,12 +192,13 @@ def shutdown_analytics(*, flush: bool = True) -> None:
         _instance.shutdown(flush=flush)
 
 
-def mark_install_detected() -> None:
-    with contextlib.suppress(OSError):
-        _FIRST_RUN_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _FIRST_RUN_PATH.touch(exist_ok=True)
+def capture_install_detected_if_needed(properties: Properties | None = None) -> bool:
+    """Capture ``install_detected`` once per persisted OpenSRE home."""
+    if not _touch_once(_FIRST_RUN_PATH):
+        return False
+    get_analytics().capture(Event.INSTALL_DETECTED, properties)
+    return True
 
 
 def capture_first_run_if_needed() -> None:
-    if _touch_once(_FIRST_RUN_PATH):
-        get_analytics().capture(Event.INSTALL_DETECTED)
+    capture_install_detected_if_needed()
