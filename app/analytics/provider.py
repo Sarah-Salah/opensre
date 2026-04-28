@@ -23,8 +23,16 @@ _CONFIG_DIR = get_store_path().parent
 _ANONYMOUS_ID_PATH = _CONFIG_DIR / "anonymous_id"
 _FIRST_RUN_PATH = _CONFIG_DIR / "installed"
 
-_POSTHOG_API_KEY = "phc_zutpVhmQw7oUmMkbawKNdYCKQWjpfASATtf5ywB75W2"
-_POSTHOG_HOST = "https://us.i.posthog.com"
+_DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com"
+
+
+def _posthog_project_api_key() -> str:
+    return os.getenv("OPENSRE_POSTHOG_PROJECT_API_KEY", "").strip()
+
+
+def _posthog_host() -> str:
+    raw = os.getenv("OPENSRE_POSTHOG_HOST", _DEFAULT_POSTHOG_HOST).strip()
+    return raw or _DEFAULT_POSTHOG_HOST
 
 _QUEUE_SIZE = 128
 _SEND_TIMEOUT = 2.0
@@ -86,7 +94,9 @@ _BASE_PROPERTIES: Final[Properties] = {
 
 class Analytics:
     def __init__(self) -> None:
-        self._disabled = _is_opted_out()
+        self._posthog_api_key = _posthog_project_api_key()
+        self._posthog_host = _posthog_host()
+        self._disabled = _is_opted_out() or not self._posthog_api_key
         self._anonymous_id = _get_or_create_anonymous_id()
         self._queue: queue.Queue[_Envelope | None] = queue.Queue(maxsize=_QUEUE_SIZE)
         self._pending_lock = threading.Lock()
@@ -159,7 +169,7 @@ class Analytics:
 
     def _send(self, client: httpx.Client, item: _Envelope) -> None:
         payload = {
-            "api_key": _POSTHOG_API_KEY,
+            "api_key": self._posthog_api_key,
             "event": item.event,
             "properties": {
                 "distinct_id": self._anonymous_id,
@@ -168,7 +178,7 @@ class Analytics:
             },
         }
         with contextlib.suppress(Exception):
-            client.post(f"{_POSTHOG_HOST}/capture/", json=payload).raise_for_status()
+            client.post(f"{self._posthog_host}/capture/", json=payload).raise_for_status()
 
     def _mark_done(self) -> None:
         with self._pending_lock:
