@@ -1067,6 +1067,13 @@ Thanks goes to these amazing people:
             <sub><b>jason8745</b></sub>
         </a>
     </td>
+            <td align="center">
+        <a href="https://github.com/Yajush-afk">
+            <img src="https://avatars.githubusercontent.com/u/180868061?v=4" width="100" alt="Yajush-afk"/>
+            <br />
+            <sub><b>Yajush-afk</b></sub>
+        </a>
+    </td>
 		</tr>
 	</tbody>
 </table>
