@@ -149,6 +149,12 @@ def validate_alertmanager_integration(**kwargs):
     return _validate(**kwargs)
 
 
+def validate_opensearch_integration(**kwargs):
+    from app.cli.wizard.integration_health import validate_opensearch_integration as _validate
+
+    return _validate(**kwargs)
+
+
 def validate_opsgenie_integration(**kwargs):
     from app.cli.wizard.integration_health import validate_opsgenie_integration as _validate
 
@@ -1440,6 +1446,82 @@ def _configure_splunk() -> tuple[str, str]:
         _console.print("[dim]Try again or press Ctrl+C to cancel.[/]")
 
 
+def _configure_opensearch() -> tuple[str, str]:
+    _, credentials = _integration_defaults("opensearch")
+    while True:
+        url = _prompt_value(
+            "OpenSearch URL (e.g. https://my-cluster.us-east-1.es.amazonaws.com)",
+            default=_string_value(credentials.get("url")),
+        )
+        auth_choice = _choose(
+            "Authentication method",
+            [
+                Choice(
+                    value="basic",
+                    label="Username + Password (HTTP Basic Auth)",
+                    hint="Default for self-hosted OpenSearch",
+                ),
+                Choice(
+                    value="api_key",
+                    label="API key",
+                    hint="Native to Elasticsearch and some OpenSearch deployments",
+                ),
+                Choice(
+                    value="none",
+                    label="None (security disabled)",
+                    hint="Clusters without authentication enabled",
+                ),
+            ],
+            default="basic",
+        )
+        api_key = ""
+        username = ""
+        password = ""
+        if auth_choice == "api_key":
+            api_key = _prompt_value(
+                "OpenSearch API key",
+                default=_string_value(credentials.get("api_key")),
+                secret=True,
+            )
+        elif auth_choice == "basic":
+            username = _prompt_value(
+                "OpenSearch username",
+                default=_string_value(credentials.get("username"), "admin"),
+            )
+            password = _prompt_value(
+                "OpenSearch password",
+                default=_string_value(credentials.get("password")),
+                secret=True,
+            )
+        with _console.status("Validating OpenSearch integration...", spinner="dots"):
+            result = validate_opensearch_integration(
+                url=url,
+                api_key=api_key,
+                username=username,
+                password=password,
+            )
+        _render_integration_result("OpenSearch", result)
+        if result.ok:
+            creds: dict[str, str] = {"url": url}
+            if api_key:
+                creds["api_key"] = api_key
+            if username:
+                creds["username"] = username
+                creds["password"] = password
+            upsert_integration("opensearch", {"credentials": creds})
+            env_values: dict[str, str] = {
+                "OPENSEARCH_URL": url,
+            }
+            if api_key:
+                env_values["OPENSEARCH_API_KEY"] = api_key
+            if username:
+                env_values["OPENSEARCH_USERNAME"] = username
+                env_values["OPENSEARCH_PASSWORD"] = password
+            env_path = sync_env_values(env_values)
+            return "OpenSearch", str(env_path)
+        _console.print("[dim]Try again or press Ctrl+C to cancel.[/]")
+
+
 def _configure_selected_integrations() -> tuple[list[str], str | None]:
     configured: list[str] = []
     last_env_path: str | None = None
@@ -1519,6 +1601,11 @@ def _configure_selected_integrations() -> tuple[list[str], str | None]:
         ),
         Choice(value="splunk", label="Splunk", hint="Query logs from Splunk"),
         Choice(
+            value="opensearch",
+            label="OpenSearch / Elasticsearch",
+            hint="Query logs and indices from OpenSearch or Elasticsearch clusters",
+        ),
+        Choice(
             value="skip",
             label="Skip for now",
             hint="Finish onboarding without configuring an integration",
@@ -1552,6 +1639,7 @@ def _configure_selected_integrations() -> tuple[list[str], str | None]:
         "opsgenie": _configure_opsgenie,
         "notion": _configure_notion,
         "openclaw": _configure_openclaw,
+        "opensearch": _configure_opensearch,
         "splunk": _configure_splunk,
     }
     _SERVICE_LABELS = {
@@ -1573,6 +1661,7 @@ def _configure_selected_integrations() -> tuple[list[str], str | None]:
         "opsgenie": "opsgenie",
         "notion": "notion",
         "openclaw": "openclaw",
+        "opensearch": "opensearch",
     }
 
     _step(f"Service · {_SERVICE_LABELS.get(selected_service, selected_service)}")
