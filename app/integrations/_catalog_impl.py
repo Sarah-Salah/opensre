@@ -698,11 +698,16 @@ def _classify_service_instance(
 
     if key == "opensearch":
         url = str(credentials.get("url", "")).strip()
+        api_key = str(credentials.get("api_key", "")).strip()
+        username = str(credentials.get("username", "")).strip()
+        password = str(credentials.get("password", "")).strip()
         if not url:
             return None, None
         return {
             "url": url.rstrip("/"),
-            "api_key": str(credentials.get("api_key", "")).strip(),
+            "api_key": api_key,
+            "username": username,
+            "password": password,
             "index_pattern": str(credentials.get("index_pattern", "*")).strip() or "*",
             "max_results": max(1, min(safe_int(credentials.get("max_results", 100), 100), 500)),
             "integration_id": record_id,
@@ -1414,6 +1419,8 @@ def load_env_integrations() -> list[dict[str, Any]]:
                 {
                     "url": opensearch_url.rstrip("/"),
                     "api_key": os.getenv("OPENSEARCH_API_KEY", "").strip(),
+                    "username": os.getenv("OPENSEARCH_USERNAME", "").strip(),
+                    "password": os.getenv("OPENSEARCH_PASSWORD", "").strip(),
                     "index_pattern": os.getenv("OPENSEARCH_INDEX_PATTERN", "*").strip() or "*",
                     "max_results": safe_int(os.getenv("OPENSEARCH_MAX_RESULTS", "100"), 100),
                 },
