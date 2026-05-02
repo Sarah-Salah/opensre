@@ -1212,9 +1212,7 @@ def test_run_wizard_configures_opensearch(monkeypatch, tmp_path) -> None:
 
 def test_run_wizard_opensearch_retries_on_validation_failure(monkeypatch, tmp_path) -> None:
     """When OpenSearch validation fails the first time, the wizard retries and succeeds."""
-    select_responses = iter(
-        ["quickstart", "anthropic", "opensearch", "basic", "basic"]
-    )
+    select_responses = iter(["quickstart", "anthropic", "opensearch", "basic", "basic"])
     password_responses = iter(["llm-secret", "wrong-pass", "correct-pass"])
     text_responses = iter(
         [
