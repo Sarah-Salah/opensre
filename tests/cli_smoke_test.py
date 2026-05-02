@@ -481,7 +481,7 @@ def test_tests_inventory_commands_smoke(cli_sandbox: CliSandbox) -> None:
 def test_onboard_interactive_smoke(cli_sandbox: CliSandbox) -> None:
     # One `j` per keypress (burst writes are not separate keys). The select list wraps;
     # from the first option, len(choices)-1 steps reach "Skip for now" without wrapping past it.
-    # 19 integrations + "Skip for now" = 20 choices → 19 j's from the top.
+    # 20 integrations + "Skip for now" = 21 choices → 21 j's from the top.
     result = _run_cli_pty(
         cli_sandbox,
         "onboard",
@@ -492,7 +492,7 @@ def test_onboard_interactive_smoke(cli_sandbox: CliSandbox) -> None:
             PtyAction(
                 expect="Choose an integration to configure",
                 send=b"\r",
-                stagger_j=20,
+                stagger_j=21,
             ),
         ],
         timeout=30.0,
@@ -536,7 +536,7 @@ def test_onboard_interactive_smoke_codex(cli_sandbox: CliSandbox) -> None:
             PtyAction(
                 expect="Choose an integration to configure",
                 send=b"\r",
-                stagger_j=20,
+                stagger_j=21,
             ),
         ],
         timeout=60.0,
