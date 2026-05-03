@@ -150,3 +150,62 @@ def test_detect_sources_skips_snowflake_without_token() -> None:
     sources = detect_sources(alert, {}, integrations)
 
     assert "snowflake" not in sources
+
+
+def test_detect_sources_forwards_opensearch_basic_auth_credentials() -> None:
+    alert = {"alert_name": "Cluster errors spike", "annotations": {}}
+    integrations = {
+        "opensearch": {
+            "url": "https://opensearch.example.invalid",
+            "username": "admin",
+            "password": "secret",
+            "index_pattern": "logs-*",
+            "integration_id": "os-basic-auth-1",
+        },
+    }
+
+    sources = detect_sources(alert, {}, integrations)
+
+    opensearch = sources.get("opensearch")
+    assert opensearch is not None
+    assert opensearch["url"] == "https://opensearch.example.invalid"
+    assert opensearch["username"] == "admin"
+    assert opensearch["password"] == "secret"
+    assert opensearch["api_key"] == ""
+    assert opensearch["integration_id"] == "os-basic-auth-1"
+    assert opensearch["connection_verified"] is True
+
+
+def test_detect_sources_opensearch_basic_auth_strips_whitespace() -> None:
+    alert = {"alert_name": "Cluster errors spike", "annotations": {}}
+    integrations = {
+        "opensearch": {
+            "url": "https://opensearch.example.invalid",
+            "username": "  admin  ",
+            "password": "  secret  ",
+        },
+    }
+
+    sources = detect_sources(alert, {}, integrations)
+
+    opensearch = sources.get("opensearch")
+    assert opensearch is not None
+    assert opensearch["username"] == "admin"
+    assert opensearch["password"] == "secret"
+
+
+def test_detect_sources_opensearch_no_auth_yields_empty_credentials() -> None:
+    alert = {"alert_name": "Cluster errors spike", "annotations": {}}
+    integrations = {
+        "opensearch": {
+            "url": "https://opensearch.example.invalid",
+        },
+    }
+
+    sources = detect_sources(alert, {}, integrations)
+
+    opensearch = sources.get("opensearch")
+    assert opensearch is not None
+    assert opensearch["api_key"] == ""
+    assert opensearch["username"] == ""
+    assert opensearch["password"] == ""
