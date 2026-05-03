@@ -485,14 +485,10 @@ def detect_sources(
             else:
                 # A hint that does not resolve is almost always a typo or a
                 # removed instance — warn so operators notice instead of
-                # silently querying the wrong Grafana. The hint value is
-                # included in the message via str() concatenation rather than
-                # an %r placeholder so CodeQL does not (incorrectly) trace
-                # opensearch credentials added later in this function back to
-                # this logger as a clear-text-logging sink.
+                # silently querying the wrong Grafana.
                 logger.warning(
-                    "grafana_instance hint not found; falling back to default instance "
-                    "(received: " + str(grafana_hint) + ")"
+                    "grafana_instance hint %r not found; falling back to default instance",
+                    grafana_hint,
                 )
 
         if grafana_int is None:
