@@ -884,6 +884,8 @@ def detect_sources(
             sources["opensearch"] = {
                 "url": opensearch_url.rstrip("/"),
                 "api_key": str(opensearch_int.get("api_key", "")).strip(),
+                "username": str(opensearch_int.get("username", "")).strip(),
+                "password": str(opensearch_int.get("password", "")).strip(),
                 "index_pattern": str(
                     annotations.get("opensearch_index_pattern")
                     or opensearch_int.get("index_pattern", "*")
