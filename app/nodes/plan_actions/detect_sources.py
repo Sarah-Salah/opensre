@@ -486,11 +486,12 @@ def detect_sources(
                 # A hint that does not resolve is almost always a typo or a
                 # removed instance — warn so operators notice instead of
                 # silently querying the wrong Grafana.
-                # CodeQL false positive: data-flow analysis incorrectly traces
-                # opensearch credentials (added later in this function) to this
-                # logger call. The grafana_hint variable here only contains a
-                # user-provided string identifier, never a credential.
-                logger.warning(  # codeql[py/clear-text-logging-sensitive-data]
+                # lgtm[py/clear-text-logging-sensitive-data] CodeQL false positive:
+                # the analyzer's data-flow incorrectly traces opensearch credentials
+                # (added later in this function via sources["opensearch"]["password"])
+                # to this Grafana logger. grafana_hint is a string identifier the user
+                # types into an annotation; it never contains credential material.
+                logger.warning(  # lgtm[py/clear-text-logging-sensitive-data]
                     "grafana_instance hint %r not found; falling back to default instance",
                     grafana_hint,
                 )
