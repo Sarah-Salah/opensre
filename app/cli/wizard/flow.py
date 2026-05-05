@@ -22,7 +22,11 @@ from app.cli.wizard.store import get_store_path, load_local_config, save_local_c
 from app.cli.wizard.validation import build_demo_action_response as _build_demo_action_response
 from app.integrations.llm_cli.binary_resolver import diagnose_binary_path
 from app.integrations.store import get_integration, remove_integration, upsert_integration
-from app.llm_credentials import has_llm_api_key, save_llm_api_key
+from app.llm_credentials import (
+    get_keyring_setup_instructions,
+    has_llm_api_key,
+    save_llm_api_key,
+)
 
 _console = Console()
 DEFAULT_GITHUB_MCP_URL = "https://api.githubcopilot.com/mcp/"
@@ -344,6 +348,11 @@ def _persist_llm_api_key(env_var: str, value: str) -> bool:
         save_llm_api_key(env_var, value)
     except RuntimeError as exc:
         _console.print(f"[red]{exc}[/]")
+        _console.print(
+            "[yellow]OpenSRE could not save your API key to the local system keychain.[/]"
+        )
+        for line in get_keyring_setup_instructions(env_var):
+            _console.print(f"[dim]{line}[/]")
         return False
     return True
 
@@ -498,6 +507,8 @@ def _configure_grafana_local() -> tuple[str, str]:
         ["docker", "info"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if ping.returncode != 0:
         _console.print("[red]Docker is not running.[/]")
@@ -510,6 +521,8 @@ def _configure_grafana_local() -> tuple[str, str]:
             ["docker", "compose", "-f", compose_file, "up", "-d"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     if result.returncode != 0:
         _console.print("[red]Docker compose failed.[/]")
@@ -1688,24 +1701,6 @@ def _configure_selected_integrations() -> tuple[list[str], str | None]:
     return configured, last_env_path
 
 
-def _render_demo_response(demo_response: dict) -> None:
-    topics = ", ".join(demo_response.get("topics", [])) or "none"
-    guidance = demo_response.get("guidance") or []
-    summary = [
-        f"demo      {'ready' if demo_response.get('success') else 'failed'}",
-        f"topics    {topics}",
-    ]
-    if guidance:
-        first = guidance[0]
-        summary.append(f"sample    {first.get('topic', 'unknown')}")
-        content = str(first.get("content", "")).strip().splitlines()
-        if content:
-            summary.append(f"preview   {content[0][:140]}")
-    _console.print("\n[bold]summary[/]")
-    for line in summary:
-        _console.print(f"[dim]{line}[/]")
-
-
 def _render_next_steps() -> None:
     _console.print("\n[bold]next[/]")
     _console.print("[dim]opensre onboard[/]")
@@ -1766,6 +1761,7 @@ def _run_cli_llm_onboarding(provider: ProviderOption) -> Literal["ok", "abort", 
             if action == "repick":
                 return "repick"
             continue
+        _console.print(f"[yellow]{probe.detail}[/]")
         action = _choose(
             f"{provider.label} not found. What next?",
             [
@@ -1965,7 +1961,5 @@ def run_wizard(_argv: list[str] | None = None) -> int:
         configured_integrations=configured_integrations,
         credential_line=_credential_line_for_saved_summary(provider),
     )
-    demo_response = build_demo_action_response()
-    _render_demo_response(demo_response)
     _render_next_steps()
     return 0
