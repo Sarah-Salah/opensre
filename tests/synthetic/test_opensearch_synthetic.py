@@ -72,8 +72,13 @@ def test_synthetic_basic_auth_threads_through_pipeline() -> None:
     assert opensearch["api_key"] == ""
     assert opensearch["connection_verified"] is True
 
+    # detect_sources aliases sources["opensearch"] under sources["elasticsearch"]
+    # so ElasticsearchLogsTool (source="elasticsearch") is reachable from a
+    # single opensearch wizard configuration. Verify the alias is the same
+    # dict reference, not a copy.
+    assert sources["elasticsearch"] is sources["opensearch"]
+
     logs_tool = ElasticsearchLogsTool()
-    sources["elasticsearch"] = {**opensearch, "default_query": "*"}
     logs_params = logs_tool.extract_params(sources)
     assert logs_params["username"] == "opensre-readonly"
     assert logs_params["password"] == "secret-pass-123"
