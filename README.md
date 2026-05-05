@@ -1286,6 +1286,22 @@ Thanks goes to these amazing people:
             <sub><b>aayushprsingh</b></sub>
         </a>
     </td>
+            <td align="center">
+        <a href="https://github.com/shubh586">
+            <img src="https://avatars.githubusercontent.com/u/176175004?v=4" width="100" alt="shubh586"/>
+            <br />
+            <sub><b>shubh586</b></sub>
+        </a>
+    </td>
+		</tr>
+		<tr>
+            <td align="center">
+        <a href="https://github.com/mazenessam77">
+            <img src="https://avatars.githubusercontent.com/u/184118745?v=4" width="100" alt="mazenessam77"/>
+            <br />
+            <sub><b>mazenessam77</b></sub>
+        </a>
+    </td>
 		</tr>
 	</tbody>
 </table>
