@@ -19,6 +19,7 @@ from app.cli.wizard.integration_health import IntegrationHealthResult
 from app.cli.wizard.probes import ProbeResult, probe_local_target, probe_remote_target
 from app.cli.wizard.prompts import select as select_prompt
 from app.cli.wizard.store import get_store_path, load_local_config, save_local_config
+from app.cli.wizard.validation import build_demo_action_response as _build_demo_action_response
 from app.integrations.llm_cli.binary_resolver import diagnose_binary_path
 from app.integrations.store import get_integration, remove_integration, upsert_integration
 from app.llm_credentials import has_llm_api_key, save_llm_api_key
@@ -40,10 +41,15 @@ _ASCII_HEADER = """\
  \\___/|_|   |_____|_| \\_|____/|_| \\_\\_____|"""
 
 
+# Re-export build_demo_action_response from validation as a stable module-level
+# attribute. The wrapper indirection (instead of `from x import y`) is
+# preserved so the function remains patchable via monkeypatch.setattr(flow,
+# "build_demo_action_response", ...) — but we also keep the underlying import
+# at module load time so the attribute exists immediately, even in CI parallel
+# test workers where lazy imports inside the wrapper occasionally fail to
+# materialize on first access.
 def build_demo_action_response():
-    from app.cli.wizard.validation import build_demo_action_response as _build
-
-    return _build()
+    return _build_demo_action_response()
 
 
 def validate_grafana_integration(**kwargs):
