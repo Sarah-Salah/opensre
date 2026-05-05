@@ -897,6 +897,12 @@ def detect_sources(
                 "integration_id": str(opensearch_int.get("integration_id", "")).strip(),
                 "connection_verified": True,
             }
+            # OpenSearch is API-compatible with Elasticsearch; expose the same
+            # source dict under both keys so ElasticsearchLogsTool (source="elasticsearch")
+            # and OpenSearchAnalyticsTool (source="opensearch") are both reachable
+            # from a single opensearch wizard configuration. Reference (not copy)
+            # so any downstream mutation stays consistent across both keys.
+            sources["elasticsearch"] = sources["opensearch"]
 
     github_int = (resolved_integrations or {}).get("github")
     if github_int:

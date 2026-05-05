@@ -122,6 +122,7 @@
               "mongodb",
               "mysql",
               "openclaw",
+              "opensearch",
               "postgresql",
               "prefect",
               "rabbitmq"
