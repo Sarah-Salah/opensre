@@ -1,6 +1,7 @@
-"""Synthetic end-to-end coverage for the OpenSearch integration.
+"""End-to-end pipeline coverage for the OpenSearch integration.
 
-These scenarios drive the full pipeline from alert ingest to tool params:
+These scenarios drive the deterministic plumbing layer from alert ingest to
+tool params:
   alert -> resolve_integrations -> detect_sources -> tool extract_params
 
 Each scenario uses a different auth mode (Basic Auth, API key, no auth) and a
@@ -9,9 +10,10 @@ that credentials thread end-to-end through the runtime sources dict and into
 the tool's extract_params output, which is the exact path that broke before
 PR #1143.
 
-Unlike the EKS synthetic suite, these scenarios do not exercise the LLM
-planner or fixture backends — they cover the deterministic plumbing layer
-that PR #1143 fixes. Adding LLM-driven scenarios is tracked as follow-up.
+This file lives under tests/nodes/plan_actions/ rather than tests/synthetic/
+because it covers the deterministic detect_sources -> extract_params plumbing,
+not LLM-driven scenarios with mocked HTTP or fixture backends. Adding a real
+LLM-driven synthetic suite for OpenSearch is tracked as follow-up.
 """
 
 from __future__ import annotations
