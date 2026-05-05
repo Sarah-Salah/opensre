@@ -504,8 +504,8 @@ def test_tests_inventory_commands_smoke(cli_sandbox: CliSandbox) -> None:
 def test_onboard_interactive_smoke(cli_sandbox: CliSandbox) -> None:
     # One `j` per keypress (burst writes are not separate keys). The select list wraps;
     # from the first option, len(choices)-1 steps reach "Skip for now" without wrapping past it.
-    # 21 integrations + "Skip for now" = 22 choices. OpenSearch is at index 21,
-    # so 21 j's lands on the new "Skip for now" position.
+    # 21 integrations + "Skip for now" = 22 choices. OpenSearch is at index 20;
+    # 21 j's lands on the new "Skip for now" position at index 21.
     result = _run_cli_pty(
         cli_sandbox,
         "onboard",
