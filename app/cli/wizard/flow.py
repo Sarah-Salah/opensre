@@ -1624,6 +1624,15 @@ def _configure_opensearch() -> tuple[str, str]:
                 default=_string_value(credentials.get("api_key")),
                 secret=True,
             )
+            # Guard against empty api_key reaching the cluster probe.
+            # On a cluster with security disabled the probe would return 200,
+            # silently dropping the user's chosen auth method and persisting
+            # the integration as URL-only.
+            if not api_key:
+                _console.print(
+                    f"[{ERROR}]  {GLYPH_ERROR}  API key is required when using API key authentication.[/]"
+                )
+                continue
         elif auth_choice == "basic":
             username = _prompt_value(
                 "OpenSearch username",
@@ -1634,6 +1643,16 @@ def _configure_opensearch() -> tuple[str, str]:
                 default=_string_value(credentials.get("password")),
                 secret=True,
             )
+            # Guard against half-populated Basic Auth credentials reaching the
+            # cluster probe. ElasticsearchConfig.headers silently drops the
+            # Authorization header when either half is empty, so the agent
+            # would send unauthenticated requests against a security-enabled
+            # cluster and fail with a confusing 401.
+            if not username or not password:
+                _console.print(
+                    f"[{ERROR}]  {GLYPH_ERROR}  Both username and password are required for Basic Auth.[/]"
+                )
+                continue
         with _console.status("Validating OpenSearch integration...", spinner="dots"):
             result = validate_opensearch_integration(
                 url=url,
