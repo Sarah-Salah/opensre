@@ -7,7 +7,7 @@ import questionary
 from prompt_toolkit.input.defaults import create_pipe_input  # type: ignore[import-not-found]
 from prompt_toolkit.output import DummyOutput  # type: ignore[import-not-found]
 
-from app.cli.prompt_support import (
+from app.cli.support.prompt_support import (
     _last_ctrl_c,
     handle_ctrl_c_press,
     install_questionary_ctrl_c_double_exit,
@@ -28,6 +28,66 @@ def test_stock_questionary_select_escape_cancels() -> None:
         q = questionary.select(
             "Pick",
             choices=["a", "b"],
+            input=pipe_input,
+            output=DummyOutput(),
+        )
+        pipe_input.send_bytes(b"\x1b")
+        app = q.application
+        app.input = pipe_input
+        app.output = DummyOutput()
+        assert app.run() is None
+
+
+def test_stock_questionary_confirm_escape_cancels() -> None:
+    """Verify that pressing Escape cancels a confirm prompt (Issue #1117).
+
+    Sends the Escape byte (\\x1b) to a questionary.confirm application
+    and asserts that it returns None instead of hanging.
+    """
+    install_questionary_escape_cancel()
+    with create_pipe_input() as pipe_input:
+        q = questionary.confirm(
+            "Are you sure?",
+            input=pipe_input,
+            output=DummyOutput(),
+        )
+        pipe_input.send_bytes(b"\x1b")
+        app = q.application
+        app.input = pipe_input
+        app.output = DummyOutput()
+        assert app.run() is None
+
+
+def test_stock_questionary_text_escape_cancels() -> None:
+    """Verify that pressing Escape cancels a text input prompt (Issue #1117).
+
+    Sends the Escape byte (\\x1b) to a questionary.text application
+    and asserts that it returns None.
+    """
+    install_questionary_escape_cancel()
+    with create_pipe_input() as pipe_input:
+        q = questionary.text(
+            "Name",
+            input=pipe_input,
+            output=DummyOutput(),
+        )
+        pipe_input.send_bytes(b"\x1b")
+        app = q.application
+        app.input = pipe_input
+        app.output = DummyOutput()
+        assert app.run() is None
+
+
+def test_stock_questionary_path_escape_cancels() -> None:
+    """Verify that pressing Escape cancels a path selection prompt (Issue #1117).
+
+    Sends the Escape byte (\\x1b) to a questionary.path application
+    and asserts that it returns None.
+    """
+    install_questionary_escape_cancel()
+    with create_pipe_input() as pipe_input:
+        q = questionary.path(
+            "Path",
             input=pipe_input,
             output=DummyOutput(),
         )
@@ -79,3 +139,30 @@ def test_ctrl_c_hint_resets_after_window(capsys) -> None:
     handle_ctrl_c_press()
     out = capsys.readouterr().out
     assert "(Press Ctrl+C again to exit)" in out
+
+
+def test_questionary_ask_inside_running_event_loop_does_not_raise() -> None:
+    """q.ask() called from within a running asyncio event loop must not raise.
+
+    Regression test for Sentry issue #1650: asyncio.run() cannot be called
+    from a running event loop — triggered when questionary prompts are shown
+    inside the async REPL dispatch path.
+    """
+    import asyncio
+
+    _last_ctrl_c[0] = None
+    install_questionary_ctrl_c_double_exit()
+
+    async def _run() -> object:
+        with create_pipe_input() as pipe_input:
+            q = questionary.select(
+                "Pick",
+                choices=["a", "b"],
+                input=pipe_input,
+                output=DummyOutput(),
+            )
+            pipe_input.send_bytes(b"\r")
+            return q.ask()
+
+    result = asyncio.run(_run())
+    assert result == "a"

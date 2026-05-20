@@ -19,6 +19,7 @@ from typing import Any
 
 from pydantic import Field, field_validator
 
+from app.integrations._validation_helpers import report_validation_failure
 from app.strict_config import StrictConfigModel
 from app.utils.truncation import truncate
 
@@ -160,7 +161,10 @@ def _get_connection(config: AzureSQLConfig) -> Any:
     import pyodbc
 
     encrypt_value = "yes" if config.encrypt else "no"
-    _esc = lambda v: str(v).replace("}", "}}")  # noqa: E731
+
+    def _esc(v: object) -> str:
+        return str(v).replace("}", "}}")
+
     conn_str = (
         f"DRIVER={{{config.driver}}};"
         f"SERVER={config.server},{config.port};"
@@ -199,8 +203,13 @@ def validate_azure_sql_config(config: AzureSQLConfig) -> AzureSQLValidationResul
             )
         finally:
             conn.close()
-    except Exception as err:  # noqa: BLE001
-        logger.debug("Azure SQL validate_config failed", exc_info=True)
+    except Exception as err:
+        report_validation_failure(
+            err,
+            logger=logger,
+            integration="azure_sql",
+            method="validate_azure_sql_config",
+        )
         return AzureSQLValidationResult(ok=False, detail=f"Azure SQL connection failed: {err}")
 
 
@@ -328,8 +337,13 @@ def get_server_status(config: AzureSQLConfig) -> dict[str, Any]:
             }
         finally:
             conn.close()
-    except Exception as err:  # noqa: BLE001
-        logger.debug("Azure SQL get_server_status failed", exc_info=True)
+    except Exception as err:
+        report_validation_failure(
+            err,
+            logger=logger,
+            integration="azure_sql",
+            method="get_server_status",
+        )
         return {"source": "azure_sql", "available": False, "error": str(err)}
 
 
@@ -406,8 +420,13 @@ def get_current_queries(
             }
         finally:
             conn.close()
-    except Exception as err:  # noqa: BLE001
-        logger.debug("Azure SQL get_current_queries failed", exc_info=True)
+    except Exception as err:
+        report_validation_failure(
+            err,
+            logger=logger,
+            integration="azure_sql",
+            method="get_current_queries",
+        )
         return {"source": "azure_sql", "available": False, "error": str(err)}
 
 
@@ -488,8 +507,13 @@ def get_resource_stats(
             }
         finally:
             conn.close()
-    except Exception as err:  # noqa: BLE001
-        logger.debug("Azure SQL get_resource_stats failed", exc_info=True)
+    except Exception as err:
+        report_validation_failure(
+            err,
+            logger=logger,
+            integration="azure_sql",
+            method="get_resource_stats",
+        )
         return {"source": "azure_sql", "available": False, "error": str(err)}
 
 
@@ -561,8 +585,13 @@ def get_slow_queries(
             }
         finally:
             conn.close()
-    except Exception as err:  # noqa: BLE001
-        logger.debug("Azure SQL get_slow_queries failed", exc_info=True)
+    except Exception as err:
+        report_validation_failure(
+            err,
+            logger=logger,
+            integration="azure_sql",
+            method="get_slow_queries",
+        )
         return {"source": "azure_sql", "available": False, "error": str(err)}
 
 
@@ -617,6 +646,11 @@ def get_wait_stats(config: AzureSQLConfig) -> dict[str, Any]:
             }
         finally:
             conn.close()
-    except Exception as err:  # noqa: BLE001
-        logger.debug("Azure SQL get_wait_stats failed", exc_info=True)
+    except Exception as err:
+        report_validation_failure(
+            err,
+            logger=logger,
+            integration="azure_sql",
+            method="get_wait_stats",
+        )
         return {"source": "azure_sql", "available": False, "error": str(err)}

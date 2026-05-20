@@ -12,8 +12,11 @@ from app.cli.wizard.integration_validators.client_validators import (
     validate_google_docs_integration,
     validate_grafana_integration,
     validate_honeycomb_integration,
+    validate_incident_io_integration,
+    validate_opensearch_integration,
     validate_opsgenie_integration,
     validate_sentry_integration,
+    validate_splunk_integration,
     validate_vercel_integration,
 )
 from app.cli.wizard.integration_validators.http_probe_validators import (
@@ -41,11 +44,14 @@ __all__ = [
     "validate_google_docs_integration",
     "validate_grafana_integration",
     "validate_honeycomb_integration",
+    "validate_incident_io_integration",
     "validate_jira_integration",
     "validate_notion_integration",
     "validate_openclaw_integration",
+    "validate_opensearch_integration",
     "validate_opsgenie_integration",
     "validate_sentry_integration",
     "validate_slack_webhook",
+    "validate_splunk_integration",
     "validate_vercel_integration",
 ]

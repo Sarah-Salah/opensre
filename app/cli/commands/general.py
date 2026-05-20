@@ -10,15 +10,25 @@ import time
 import click
 
 from app.analytics.cli import (
-    capture_cli_invoked,
-    capture_investigation_completed,
-    capture_investigation_failed,
-    capture_investigation_started,
+    capture_update_completed,
+    capture_update_failed,
+    capture_update_started,
+    track_investigation,
 )
-from app.cli.constants import ALERT_TEMPLATE_CHOICES
-from app.cli.context import is_json_output, is_yes
-from app.cli.exit_codes import ERROR, SUCCESS
+from app.analytics.source import EntrypointSource, TriggerMode
+from app.cli.support.constants import ALERT_TEMPLATE_CHOICES
+from app.cli.support.context import is_json_output, is_yes
+from app.cli.support.exit_codes import ERROR, SUCCESS
 from app.version import get_version
+
+
+@click.command(name="uninstall")
+@click.option("--yes", "-y", "local_yes", is_flag=True, help="Skip the confirmation prompt.")
+def uninstall_command(local_yes: bool) -> None:
+    """Remove opensre and all local data from this machine."""
+    from app.cli.support.uninstall import run_uninstall
+
+    raise SystemExit(run_uninstall(yes=local_yes or is_yes()))
 
 
 @click.command(name="update")
@@ -31,16 +41,25 @@ from app.version import get_version
 @click.option("--yes", "-y", "local_yes", is_flag=True, help="Skip the confirmation prompt.")
 def update_command(check_only: bool, local_yes: bool) -> None:
     """Check for a newer version and update if one is available."""
-    from app.cli.update import run_update
+    from app.cli.support.update import run_update
 
-    capture_cli_invoked()
-    raise SystemExit(run_update(check_only=check_only, yes=local_yes or is_yes()))
+    capture_update_started(check_only=check_only)
+    try:
+        exit_code = run_update(check_only=check_only, yes=local_yes or is_yes())
+    except Exception as exc:
+        capture_update_failed(check_only=check_only, reason=type(exc).__name__)
+        raise
+
+    capture_update_completed(
+        check_only=check_only,
+        updated=exit_code == 0 and not check_only,
+    )
+    raise SystemExit(exit_code)
 
 
 @click.command(name="version")
 def version_command() -> None:
     """Print detailed version, Python and OS info."""
-    capture_cli_invoked()
     if is_json_output():
         click.echo(
             json.dumps(
@@ -65,12 +84,10 @@ def version_command() -> None:
 )
 def health_command(watch: bool, rate: int) -> None:
     """Show a quick health summary of the local agent setup."""
-    from app.cli.health_view import render_health_json, render_health_report
+    from app.cli.support.health_view import render_health_json, render_health_report
     from app.config import get_environment
     from app.integrations.store import STORE_PATH
     from app.integrations.verify import verify_integrations
-
-    capture_cli_invoked()
 
     def _run_once() -> int:
         results = verify_integrations()
@@ -176,7 +193,7 @@ def investigate_command(
         )
         return
     if slack_thread:
-        from app.cli.errors import OpenSREError
+        from app.cli.support.errors import OpenSREError
 
         raise OpenSREError(
             "--slack-thread requires --service.",
@@ -184,19 +201,13 @@ def investigate_command(
         )
 
     from app.cli import write_json
-    from app.cli.alert_templates import build_alert_template
-    from app.cli.investigate import run_investigation_cli, run_investigation_cli_streaming
-    from app.cli.payload import load_payload
+    from app.cli.investigation import run_investigation_cli, run_investigation_cli_streaming
+    from app.cli.investigation.alert_templates import build_alert_template
+    from app.cli.investigation.payload import load_payload
 
-    capture_investigation_started(
-        input_path=input_path,
-        input_json=input_json,
-        interactive=interactive,
-    )
     try:
         if print_template:
             write_json(build_alert_template(print_template), output)
-            capture_investigation_completed()
             raise SystemExit(SUCCESS)
 
         payload = load_payload(
@@ -204,27 +215,38 @@ def investigate_command(
             input_json=input_json,
             interactive=interactive,
         )
-        # Only stream the live UI when the user is interactively watching stdout
-        # and hasn't asked for machine-readable JSON. Otherwise the spinner and
-        # ANSI control codes corrupt the JSON payload that consumers expect on
-        # stdout (pipes, redirection, --json, CI logs).
-        # --evaluate forces the non-streaming path because the streaming runner
-        # does not yet wire opensre_evaluate scoring through the renderer.
-        stream_to_stdout = (
-            sys.stdout.isatty() and not is_json_output() and output is None and not evaluate
+        trigger_mode = (
+            TriggerMode.PASTE
+            if interactive
+            else (TriggerMode.INLINE_JSON if input_json is not None else TriggerMode.FILE)
         )
-        if stream_to_stdout:
-            result = run_investigation_cli_streaming(raw_alert=payload)
-        else:
-            result = run_investigation_cli(raw_alert=payload, opensre_evaluate=evaluate)
-        write_json(result, output)
+        with track_investigation(
+            entrypoint=EntrypointSource.CLI_COMMAND,
+            trigger_mode=trigger_mode,
+            input_path=input_path,
+            input_json=input_json,
+            interactive=interactive,
+            evaluate_requested=evaluate,
+        ):
+            # Only stream the live UI when the user is interactively watching stdout
+            # and hasn't asked for machine-readable JSON. Otherwise the spinner and
+            # ANSI control codes corrupt the JSON payload that consumers expect on
+            # stdout (pipes, redirection, --json, CI logs).
+            # --evaluate forces the non-streaming path because the streaming runner
+            # does not yet wire opensre_evaluate scoring through the renderer.
+            stream_to_stdout = (
+                sys.stdout.isatty() and not is_json_output() and output is None and not evaluate
+            )
+            if stream_to_stdout:
+                run_investigation_cli_streaming(raw_alert=payload)
+            else:
+                result = run_investigation_cli(raw_alert=payload, opensre_evaluate=evaluate)
+                write_json(result, output)
     except SystemExit:
         raise
-    except Exception:
-        capture_investigation_failed()
-        raise
+    except KeyboardInterrupt:
+        raise SystemExit(SUCCESS) from None
 
-    capture_investigation_completed()
     raise SystemExit(SUCCESS)
 
 
@@ -238,9 +260,9 @@ def _run_service_investigation(
     """Run a runtime investigation for a deployed service by name."""
     import os
 
-    from app.cli.args import write_json
-    from app.cli.errors import OpenSREError
-    from app.cli.investigate import run_investigation_cli
+    from app.cli.investigation import run_investigation_cli
+    from app.cli.support.args import write_json
+    from app.cli.support.errors import OpenSREError
     from app.remote.runtime_alert import build_runtime_alert_payload
 
     conflicting = [
@@ -266,25 +288,23 @@ def _run_service_investigation(
             suggestion="Export SLACK_BOT_TOKEN=xoxb-... in your environment and retry.",
         )
 
-    capture_investigation_started(input_path=None, input_json=None, interactive=False)
-    try:
-        raw_alert = build_runtime_alert_payload(
-            service,
-            slack_thread_ref=slack_thread,
-            slack_bot_token=slack_bot_token or None,
-        )
-        _eval = bool(other_inputs.get("evaluate"))
+    raw_alert = build_runtime_alert_payload(
+        service,
+        slack_thread_ref=slack_thread,
+        slack_bot_token=slack_bot_token or None,
+    )
+    _eval = bool(other_inputs.get("evaluate"))
+    with track_investigation(
+        entrypoint=EntrypointSource.CLI_COMMAND,
+        trigger_mode=TriggerMode.SERVICE_RUNTIME,
+        input_path=None,
+        input_json=None,
+        interactive=False,
+        evaluate_requested=_eval,
+    ):
         result = run_investigation_cli(
             raw_alert=raw_alert,
-            alert_name=raw_alert.get("alert_name"),
-            pipeline_name=raw_alert.get("pipeline_name"),
-            severity=raw_alert.get("severity"),
             opensre_evaluate=_eval,
         )
-    except Exception:
-        capture_investigation_failed()
-        raise
-
-    capture_investigation_completed()
     write_json(result, output)
     raise SystemExit(SUCCESS)

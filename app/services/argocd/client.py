@@ -15,10 +15,10 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
-from pydantic import field_validator, model_validator
 
-from app.strict_config import StrictConfigModel
-from app.utils.url_validation import validate_https_or_loopback_http_url
+from app.integrations.config_models import ArgoCDIntegrationConfig
+from app.integrations.probes import ProbeResult
+from app.services._error_helpers import capture_service_error
 
 logger = logging.getLogger(__name__)
 
@@ -56,56 +56,7 @@ def _normalize_verify_ssl(value: object) -> bool:
     return bool(value)
 
 
-class ArgoCDConfig(StrictConfigModel):
-    """Normalized Argo CD connection settings."""
-
-    base_url: str
-    bearer_token: str = ""
-    username: str = ""
-    password: str = ""
-    project: str = ""
-    app_namespace: str = ""
-    verify_ssl: bool = True
-    integration_id: str = ""
-
-    @field_validator("base_url", mode="before")
-    @classmethod
-    def _normalize_base_url(cls, value: object) -> str:
-        normalized = str(value or "").strip().rstrip("/")
-        return validate_https_or_loopback_http_url(normalized, service_name="Argo CD")
-
-    @field_validator("bearer_token", mode="before")
-    @classmethod
-    def _normalize_bearer_token(cls, value: object) -> str:
-        text = str(value or "").strip()
-        if text.lower().startswith("bearer "):
-            text = text.split(None, 1)[1].strip()
-        return text
-
-    @field_validator(
-        "username", "password", "project", "app_namespace", "integration_id", mode="before"
-    )
-    @classmethod
-    def _normalize_str(cls, value: object) -> str:
-        return str(value or "").strip()
-
-    @field_validator("verify_ssl", mode="before")
-    @classmethod
-    def _normalize_bool(cls, value: object) -> bool:
-        return _normalize_verify_ssl(value)
-
-    @model_validator(mode="after")
-    def _no_dual_auth(self) -> ArgoCDConfig:
-        if self.bearer_token and (self.username or self.password):
-            raise ValueError(
-                "Argo CD config has both bearer_token and username/password set; "
-                "use one auth method only."
-            )
-        return self
-
-    @property
-    def is_configured(self) -> bool:
-        return bool(self.base_url and (self.bearer_token or (self.username and self.password)))
+ArgoCDConfig = ArgoCDIntegrationConfig
 
 
 class ArgoCDClient:
@@ -148,6 +99,28 @@ class ArgoCDClient:
     @property
     def is_configured(self) -> bool:
         return self.config.is_configured
+
+    def probe_access(self) -> ProbeResult:
+        """Validate Argo CD connectivity with a filtered application list call."""
+        if not self.config.base_url:
+            return ProbeResult.missing("Missing base_url.")
+        if not (self.config.bearer_token or (self.config.username and self.config.password)):
+            return ProbeResult.missing("Missing bearer token or username/password credentials.")
+
+        with self:
+            projects = [self.config.project] if self.config.project else None
+            result = self.list_applications(projects=projects)
+        if not result.get("success"):
+            return ProbeResult.failed(
+                f"Application list failed: {result.get('error', 'unknown error')}"
+            )
+
+        total = int(result.get("total", 0) or 0)
+        suffix = "application" if total == 1 else "applications"
+        return ProbeResult.passed(
+            f"Connected to Argo CD and listed {total} {suffix}.",
+            total=total,
+        )
 
     def _redact(self, value: object) -> str:
         text = str(value)
@@ -246,8 +219,10 @@ class ArgoCDClient:
                 _normalize_application(item) for item in items if isinstance(item, dict)
             ]
             return {"success": True, "applications": applications, "total": len(applications)}
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("[argocd] list_applications failed type=%s", type(exc).__name__)
+        except Exception as exc:
+            capture_service_error(
+                exc, logger=logger, integration="argocd", method="list_applications"
+            )
             return self._error_result("list applications failed", exc)
 
     def get_application_summary(
@@ -279,11 +254,13 @@ class ArgoCDClient:
                 "application": app,
                 "recent_history": _recent_history(payload),
             }
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "[argocd] get_application_summary failed type=%s app=%r",
-                type(exc).__name__,
-                name,
+        except Exception as exc:
+            capture_service_error(
+                exc,
+                logger=logger,
+                integration="argocd",
+                method="get_application_summary",
+                extras={"application_name": name},
             )
             return self._error_result("get application summary failed", exc)
 
@@ -329,11 +306,13 @@ class ArgoCDClient:
                 "diffs": diffs,
                 "diff_count": len(diffs),
             }
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "[argocd] get_application_diff failed type=%s app=%r",
-                type(exc).__name__,
-                name,
+        except Exception as exc:
+            capture_service_error(
+                exc,
+                logger=logger,
+                integration="argocd",
+                method="get_application_diff",
+                extras={"application_name": name},
             )
             return self._error_result("get application diff failed", exc)
 

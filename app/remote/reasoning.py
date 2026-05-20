@@ -1,4 +1,4 @@
-"""Map LangGraph streaming events to human-readable reasoning steps.
+"""Map remote streaming events to human-readable reasoning steps.
 
 Translates fine-grained ``events``-mode callbacks (tool calls, LLM
 reasoning, chain transitions) into short status strings suitable for
@@ -29,7 +29,7 @@ def tool_display_name(tool_name: str) -> str:
 
 
 def reasoning_text(kind: str, data: dict[str, Any], node_name: str) -> str | None:
-    """Derive a short reasoning string from a LangGraph events-mode payload.
+    """Derive a short reasoning string from a events-mode payload.
 
     Returns ``None`` when the event doesn't warrant a visible status update
     (e.g. internal chain scaffolding, empty chunks).
@@ -52,7 +52,8 @@ def _on_tool_start(data: dict[str, Any]) -> str:
 
 
 def _on_tool_end(data: dict[str, Any], _node_name: str) -> str | None:
-    output = data.get("data", {}).get("output", "")
+    payload = data.get("data")
+    output = payload.get("output", "") if isinstance(payload, dict) else ""
     if isinstance(output, str) and len(output) > 120:
         output = output[:117] + "..."
     name = data.get("name", "")

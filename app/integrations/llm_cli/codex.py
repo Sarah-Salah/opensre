@@ -1,4 +1,9 @@
-"""OpenAI Codex CLI adapter (`codex exec`, non-interactive)."""
+"""OpenAI Codex CLI adapter (`codex exec`, non-interactive).
+
+OpenAI Platform env vars (``OPENAI_API_KEY``, ``OPENAI_ORG_ID``, ``OPENAI_PROJECT_ID``,
+``OPENAI_BASE_URL``) are forwarded on invoke when set, so Codex runs work with
+usage-based API key auth as well as ``codex login`` sessions.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +20,10 @@ from app.integrations.llm_cli.binary_resolver import (
 )
 from app.integrations.llm_cli.binary_resolver import (
     resolve_cli_binary,
+)
+from app.integrations.llm_cli.env_overrides import (
+    OPENAI_PLATFORM_ENV_KEYS,
+    nonempty_env_values,
 )
 
 _CODEX_VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
@@ -65,6 +74,8 @@ def _codex_workspace_and_skip_git() -> tuple[str, bool]:
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5.0,
             check=False,
         )
@@ -79,6 +90,10 @@ def _codex_workspace_and_skip_git() -> tuple[str, bool]:
 
 def _fallback_codex_paths() -> list[str]:
     return _default_cli_fallback_paths("codex")
+
+
+def _has_openai_api_key() -> bool:
+    return bool(os.environ.get("OPENAI_API_KEY", "").strip())
 
 
 class CodexAdapter:
@@ -104,6 +119,8 @@ class CodexAdapter:
                 [binary_path, "--version"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=_PROBE_TIMEOUT_SEC,
                 check=False,
             )
@@ -139,6 +156,8 @@ class CodexAdapter:
                 [binary_path, "login", "status"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=_PROBE_TIMEOUT_SEC,
                 check=False,
             )
@@ -149,6 +168,11 @@ class CodexAdapter:
             logged_in, auth_detail = _classify_codex_auth(
                 auth_proc.returncode, auth_proc.stdout, auth_proc.stderr
             )
+
+        if logged_in is not True and _has_openai_api_key():
+            # Allow API-key auth when ChatGPT/session login is absent or unclear.
+            logged_in = True
+            auth_detail = "Authenticated via OPENAI_API_KEY fallback."
 
         detail = auth_detail + upgrade_note
         return CLIProbe(
@@ -171,7 +195,14 @@ class CodexAdapter:
             )
         return self._probe_binary(binary)
 
-    def build(self, *, prompt: str, model: str | None, workspace: str) -> CLIInvocation:
+    def build(
+        self,
+        *,
+        prompt: str,
+        model: str | None,
+        workspace: str,
+        reasoning_effort: str | None = None,
+    ) -> CLIInvocation:
         binary = self._resolve_binary()
         if not binary:
             raise RuntimeError(
@@ -199,14 +230,17 @@ class CodexAdapter:
         resolved_model = (model or "").strip()
         if resolved_model:
             argv.extend(["-m", resolved_model])
+        if reasoning_effort:
+            argv.extend(["-c", f'model_reasoning_effort="{reasoning_effort}"'])
 
         argv.append("-")
 
+        oai = nonempty_env_values(OPENAI_PLATFORM_ENV_KEYS)
         return CLIInvocation(
             argv=tuple(argv),
             stdin=prompt,
             cwd=ws,
-            env=None,
+            env=oai or None,
             timeout_sec=self.default_exec_timeout_sec,
         )
 
